@@ -25,6 +25,10 @@ import java.util.Set;
  * path fails soft — missing model / UnsatisfiedLinkError / LinkageError must never take
  * down the JVM. Note: a true SIGSEGV inside native code cannot be caught in Java; we
  * therefore avoid loading natives during mod construction or title-screen setup.
+ * <p>
+ * {@link VoiceRecognitionState.ModelStatus#MISSING} is always retryable (install model, press V again).
+ * True native linkage failures are session-permanent because LibVosk {@code <clinit>} stays poisoned.
+ * Non-native model IO errors are retryable after fix + {@code /verityvoice reload}.
  */
 @OnlyIn(Dist.CLIENT)
 public final class VoskRecognitionService implements AutoCloseable {
@@ -32,7 +36,10 @@ public final class VoskRecognitionService implements AutoCloseable {
     private Recognizer recognizer;
     private String grammarFingerprint = "";
     private String loadError = "";
-    /** Once natives fail, never retry — LibVosk clinit stays poisoned. */
+    /**
+     * Only set for true native linkage / LibVosk clinit poisoning.
+     * Missing model must NEVER set this — user can install the model mid-session.
+     */
     private boolean nativesPermanentlyFailed;
 
     public Path expectedModelPath() {
@@ -46,15 +53,22 @@ public final class VoskRecognitionService implements AutoCloseable {
     public synchronized boolean ensureLoaded(@Nullable Collection<String> grammarWords) {
         if (nativesPermanentlyFailed) {
             VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.ERROR);
-            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.ERROR);
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NATIVE_ERROR);
+            VoiceRecognitionState.setLastError(loadError.isBlank()
+                    ? "Vosk native library unavailable (restart game after fixing natives)"
+                    : loadError, false);
             return false;
         }
 
         Path path = expectedModelPath();
         if (!looksLikeModel(path)) {
+            closeQuietly();
+            loadError = "Missing Vosk model folder: " + path.toAbsolutePath()
+                    + " (expected am/ conf/ graph/ or ivector/)";
             VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.MISSING);
             VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.MODEL_MISSING);
-            loadError = "Missing Vosk model folder: " + path.toAbsolutePath();
+            VoiceRecognitionState.setLastError(loadError, false);
+            UniverseVerityVoice.LOGGER.warn("[VerityVoice] {}", loadError);
             return false;
         }
         try {
@@ -66,6 +80,8 @@ public final class VoskRecognitionService implements AutoCloseable {
             }
             rebuildRecognizer(grammarWords);
             loadError = "";
+            VoiceRecognitionState.setLastError("", false);
+            VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.LOADED);
             return true;
         } catch (Throwable ex) {
             // LinkageError / ExceptionInInitializerError / UnsatisfiedLinkError / model IO —
@@ -73,10 +89,32 @@ public final class VoskRecognitionService implements AutoCloseable {
             if (ex instanceof VirtualMachineError) {
                 throw (VirtualMachineError) ex;
             }
-            String prefix = (ex instanceof LinkageError)
-                    ? "Vosk native library unavailable"
-                    : "Vosk model/native error";
-            return failNative(prefix, ex);
+            if (isNativeLinkageFailure(ex)) {
+                return failNative("Vosk native library unavailable", ex);
+            }
+            return failModel("Vosk model error (retryable)", ex);
+        }
+    }
+
+    /**
+     * Clear retryable failure state so the next listen can pick up a newly installed model.
+     * Does not clear {@link #nativesPermanentlyFailed} (LibVosk clinit stays poisoned).
+     */
+    public synchronized void clearRetryableFailure() {
+        if (nativesPermanentlyFailed) {
+            return;
+        }
+        closeQuietly();
+        loadError = "";
+        VoiceRecognitionState.resetModelMissingNotify();
+        if (VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.MISSING
+                || VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.ERROR) {
+            VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.UNKNOWN);
+        }
+        if (VoiceRecognitionState.micStatus() == VoiceRecognitionState.MicStatus.MODEL_MISSING
+                || VoiceRecognitionState.micStatus() == VoiceRecognitionState.MicStatus.NATIVE_ERROR
+                || VoiceRecognitionState.micStatus() == VoiceRecognitionState.MicStatus.ERROR) {
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.OFF);
         }
     }
 
@@ -84,14 +122,51 @@ public final class VoskRecognitionService implements AutoCloseable {
         nativesPermanentlyFailed = true;
         loadError = prefix + ": " + (err.getMessage() == null ? err.getClass().getSimpleName() : err.getMessage());
         VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.ERROR);
-        VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.ERROR);
-        VoiceRecognitionState.setLastError(loadError);
+        VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NATIVE_ERROR);
+        VoiceRecognitionState.setLastError(loadError, false);
         UniverseVerityVoice.LOGGER.error(
-                "[VerityVoice] {} — voice recognition disabled for this session (game continues).",
+                "[VerityVoice] {} — native load failed for this session (game continues). Restart after fixing packaging/JNA.",
                 loadError
         );
-        UniverseVerityVoice.LOGGER.debug("[VerityVoice] Native/model failure detail", err);
+        UniverseVerityVoice.LOGGER.debug("[VerityVoice] Native failure detail", err);
         closeQuietly();
+        return false;
+    }
+
+    private boolean failModel(String prefix, Throwable err) {
+        loadError = prefix + ": " + (err.getMessage() == null ? err.getClass().getSimpleName() : err.getMessage());
+        VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.ERROR);
+        VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.MODEL_MISSING);
+        VoiceRecognitionState.setLastError(loadError, false);
+        UniverseVerityVoice.LOGGER.error(
+                "[VerityVoice] {} — fix/reinstall model then press V or /verityvoice reload (game continues).",
+                loadError
+        );
+        UniverseVerityVoice.LOGGER.debug("[VerityVoice] Model failure detail", err);
+        closeQuietly();
+        return false;
+    }
+
+    private static boolean isNativeLinkageFailure(Throwable ex) {
+        Throwable t = ex;
+        while (t != null) {
+            if (t instanceof UnsatisfiedLinkError || t instanceof ExceptionInInitializerError) {
+                return true;
+            }
+            if (t instanceof NoClassDefFoundError) {
+                String msg = t.getMessage() == null ? "" : t.getMessage();
+                if (msg.contains("vosk") || msg.contains("LibVosk") || msg.contains("jna")) {
+                    return true;
+                }
+            }
+            if (t instanceof LinkageError && !(t instanceof ClassNotFoundException) && !(t instanceof NoClassDefFoundError)) {
+                String msg = String.valueOf(t.getMessage()).toLowerCase();
+                if (msg.contains("vosk") || msg.contains("jna") || msg.contains("native")) {
+                    return true;
+                }
+            }
+            t = t.getCause();
+        }
         return false;
     }
 
@@ -156,7 +231,7 @@ public final class VoskRecognitionService implements AutoCloseable {
             if (ex instanceof VirtualMachineError) {
                 throw (VirtualMachineError) ex;
             }
-            VoiceRecognitionState.setLastError("Recognizer error: " + ex.getMessage());
+            VoiceRecognitionState.setLastError("Recognizer error: " + ex.getMessage(), false);
             return false;
         }
     }

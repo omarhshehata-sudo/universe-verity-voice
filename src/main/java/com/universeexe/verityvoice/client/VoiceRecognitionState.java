@@ -14,7 +14,9 @@ public final class VoiceRecognitionState {
         COMMAND_DETECTED,
         NO_COMMAND,
         ERROR,
-        MODEL_MISSING
+        MODEL_MISSING,
+        /** LibVosk / JNA native load failed for this session. */
+        NATIVE_ERROR
     }
 
     public enum ModelStatus {
@@ -156,9 +158,18 @@ public final class VoiceRecognitionState {
         return lastError;
     }
 
+    /**
+     * Record last error text. By default does not overwrite mic status — callers that need
+     * {@link MicStatus#ERROR} should pass {@code forceMicError=true} or set mic status explicitly
+     * (MODEL_MISSING / NATIVE_ERROR must not be collapsed into a generic ERROR).
+     */
     public static void setLastError(String error) {
+        setLastError(error, false);
+    }
+
+    public static void setLastError(String error, boolean forceMicError) {
         lastError = error == null ? "" : error;
-        if (error != null && !error.isBlank()) {
+        if (forceMicError && error != null && !error.isBlank()) {
             micStatus = MicStatus.ERROR;
         }
     }

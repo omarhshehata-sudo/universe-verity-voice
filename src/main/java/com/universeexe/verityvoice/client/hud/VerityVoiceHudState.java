@@ -21,6 +21,8 @@ public enum VerityVoiceHudState {
     NO_VERITY,
     MICROPHONE_ERROR,
     MODEL_MISSING,
+    /** Vosk/JNA natives failed to load (distinct from missing model folder). */
+    NATIVE_ERROR,
     VOICE_DISABLED;
 
     public String langKey() {
@@ -36,6 +38,7 @@ public enum VerityVoiceHudState {
                 || this == NO_COMMAND
                 || this == MICROPHONE_ERROR
                 || this == MODEL_MISSING
+                || this == NATIVE_ERROR
                 || this == VOICE_DISABLED;
     }
 
@@ -72,6 +75,7 @@ public enum VerityVoiceHudState {
             case "no_verity", "noverty" -> NO_VERITY;
             case "microphone_error", "mic_error", "mic" -> MICROPHONE_ERROR;
             case "model_missing", "model" -> MODEL_MISSING;
+            case "native_error", "native", "natives" -> NATIVE_ERROR;
             case "voice_disabled", "disabled" -> VOICE_DISABLED;
             default -> {
                 try {

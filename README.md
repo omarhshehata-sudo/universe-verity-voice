@@ -21,6 +21,8 @@ Dialogue, TTS, diamond/village finding, anger, demon transform, quest screens, o
 
 ## Model install
 
+Exact runtime path (required):
+
 ```
 config/universe_verity_voice/models/vosk-model-small-en-us-0.15/
 ```
@@ -30,6 +32,18 @@ Modpack path:
 ```
 overrides/config/universe_verity_voice/models/vosk-model-small-en-us-0.15/
 ```
+
+Helper script (downloads Alphacephei zip + extracts):
+
+```bash
+chmod +x scripts/download-vosk-model.sh
+./scripts/download-vosk-model.sh /path/to/minecraft/instance
+```
+
+In-game: `/verityvoice model` prints the absolute expected path.
+
+- **MODEL_MISSING** — folder missing; install model, press V again (retryable, no restart).
+- **NATIVE_ERROR** — libvosk/JNA failed this session; fix packaging and restart.
 
 See `modpack/overrides/config/universe_verity_voice/models/README.md`.
 

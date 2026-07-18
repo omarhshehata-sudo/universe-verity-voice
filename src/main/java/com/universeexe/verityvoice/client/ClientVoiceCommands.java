@@ -96,7 +96,8 @@ public final class ClientVoiceCommands {
                                         ctx.getSource().sendFailure(Component.literal(
                                                 "[VerityVoice] Unknown hudstate. Try: ready, listening, processing, "
                                                         + "recognized, no_command, too_far, no_verity, "
-                                                        + "microphone_error, model_missing, voice_disabled, hidden"));
+                                                        + "microphone_error, model_missing, native_error, "
+                                                        + "voice_disabled, hidden"));
                                         return 0;
                                     }
                                     VerityVoiceHudController.INSTANCE.preview(state);

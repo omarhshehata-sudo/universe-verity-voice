@@ -139,9 +139,6 @@ public final class VerityVoiceHudOverlay {
                 return Component.translatable("gui.universe_verity_voice.command_recognized.intent", intentName);
             }
         }
-        if (state == VerityVoiceHudState.MODEL_MISSING && VoiceClientConfig.DEBUG_LOGGING.get()) {
-            return Component.translatable("gui.universe_verity_voice.model_missing");
-        }
         return Component.translatable(state.langKey());
     }
 
@@ -189,7 +186,7 @@ public final class VerityVoiceHudOverlay {
                 drawMic(g, x, y, dim, 1.0f);
                 drawSlash(g, x, y, muted);
             }
-            case MODEL_MISSING -> drawMic(g, x, y, error, 1.0f);
+            case MODEL_MISSING, NATIVE_ERROR -> drawMic(g, x, y, error, 1.0f);
             case PROCESSING -> drawMic(g, x, y, dim, 1.0f);
             case LISTENING -> {
                 float glow = VoiceClientConfig.USE_REDUCED_MOTION.get() ? 1.0f : 0.85f + 0.15f * pulse;

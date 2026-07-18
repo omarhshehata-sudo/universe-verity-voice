@@ -19,8 +19,10 @@
   "gui.universe_verity_voice.no_verity.compact": "Cannot hear you.",
   "gui.universe_verity_voice.microphone_error": "Microphone unavailable.",
   "gui.universe_verity_voice.microphone_error.compact": "Mic unavailable.",
-  "gui.universe_verity_voice.model_missing": "Voice recognition unavailable.",
-  "gui.universe_verity_voice.model_missing.compact": "Voice unavailable.",
+  "gui.universe_verity_voice.model_missing": "MODEL_MISSING — install Vosk model (see /verityvoice model).",
+  "gui.universe_verity_voice.model_missing.compact": "MODEL_MISSING",
+  "gui.universe_verity_voice.native_error": "NATIVE_ERROR — Vosk natives failed (restart after fix).",
+  "gui.universe_verity_voice.native_error.compact": "NATIVE_ERROR",
   "gui.universe_verity_voice.voice_disabled": "Verity voice commands are disabled.",
   "gui.universe_verity_voice.voice_disabled.compact": "Voice disabled.",
 

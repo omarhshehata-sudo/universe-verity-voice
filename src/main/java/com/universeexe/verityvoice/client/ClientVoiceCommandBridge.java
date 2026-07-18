@@ -1,5 +1,6 @@
 package com.universeexe.verityvoice.client;
 
+import com.universeexe.verityvoice.UniverseVerityVoice;
 import com.universeexe.verityvoice.client.audio.MicrophoneDeviceManager;
 import com.universeexe.verityvoice.common.config.VoiceClientConfig;
 import net.minecraft.client.Minecraft;
@@ -8,6 +9,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+
+import java.nio.file.Path;
 
 @OnlyIn(Dist.CLIENT)
 public final class ClientVoiceCommandBridge {
@@ -66,10 +69,20 @@ public final class ClientVoiceCommandBridge {
                     msg(" - " + name);
                 }
             }
-            case "model" -> msg("Model path=" + worker.vosk().expectedModelPath().toAbsolutePath()
-                    + " status=" + VoiceRecognitionState.modelStatus()
-                    + " folder=" + VoiceClientConfig.MODEL_FOLDER_NAME.get()
-                    + (worker.vosk().loadError().isBlank() ? "" : " error=" + worker.vosk().loadError()));
+            case "model" -> {
+                var vosk = worker.vosk();
+                Path expected = vosk.expectedModelPath();
+                msg("Exact model path (required folder):");
+                msg("  " + expected.toAbsolutePath());
+                msg("Relative: config/" + UniverseVerityVoice.MOD_ID + "/models/"
+                        + VoiceClientConfig.MODEL_FOLDER_NAME.get() + "/");
+                msg("status=" + VoiceRecognitionState.modelStatus()
+                        + " mic=" + VoiceRecognitionState.micStatus()
+                        + " nativesFailed=" + vosk.nativesPermanentlyFailed()
+                        + " loaded=" + vosk.isLoaded()
+                        + (vosk.loadError().isBlank() ? "" : " error=" + vosk.loadError()));
+                msg("If MODEL_MISSING: download vosk-model-small-en-us-0.15, extract so am/conf/graph exist under that path, then press V or /verityvoice reload.");
+            }
             case "testmic" -> worker.offer(VoiceRecognitionWorker.Command.TEST_MIC);
             case "start" -> worker.offer(VoiceRecognitionWorker.Command.START_LISTEN);
             case "stop" -> worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);

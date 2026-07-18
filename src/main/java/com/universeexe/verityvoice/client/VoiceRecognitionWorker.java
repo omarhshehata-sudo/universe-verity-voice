@@ -179,24 +179,35 @@ public final class VoiceRecognitionWorker {
             case START_LISTEN -> {
                 VoiceCommandRegistry.INSTANCE.reloadFromServerDefinitions();
                 VoskRecognitionService service = voskService();
+                // ensureLoaded always re-checks the model path when unloaded — installing mid-session works.
                 if (!service.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords())) {
-                    if (VoiceRecognitionState.consumeModelMissingNotify()) {
-                        Minecraft.getInstance().execute(() -> {
-                            var player = Minecraft.getInstance().player;
-                            if (player != null) {
-                                player.displayClientMessage(net.minecraft.network.chat.Component.literal(
-                                        "[VerityVoice] Speech model missing. Expected: "
-                                                + service.expectedModelPath().toAbsolutePath()
-                                ), false);
-                            }
-                        });
-                    }
+                    Minecraft.getInstance().execute(() -> {
+                        var player = Minecraft.getInstance().player;
+                        if (player == null) {
+                            return;
+                        }
+                        if (service.nativesPermanentlyFailed()) {
+                            player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                                    "[VerityVoice] NATIVE_ERROR — Vosk natives failed to load. "
+                                            + "Check logs; restart after fixing. Detail: " + service.loadError()
+                            ), false);
+                            return;
+                        }
+                        if (VoiceRecognitionState.consumeModelMissingNotify()) {
+                            player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                                    "[VerityVoice] MODEL_MISSING — install vosk-model-small-en-us-0.15 at: "
+                                            + service.expectedModelPath().toAbsolutePath()
+                                            + " then press V again (or /verityvoice reload)."
+                            ), false);
+                        }
+                    });
                     return;
                 }
                 if (captureService.startCapture()) {
                     service.resetUtterance();
                     listening.set(true);
                     trailingUntilMs = 0;
+                    VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.LISTENING);
                     VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.LISTENING);
                 }
             }
@@ -211,6 +222,9 @@ public final class VoiceRecognitionWorker {
                 // Only attempt native/model load when explicitly requested (or first listen).
                 VoskRecognitionService service = voskService();
                 service.close();
+                if (!service.nativesPermanentlyFailed()) {
+                    service.clearRetryableFailure();
+                }
                 VoiceRecognitionState.resetModelMissingNotify();
                 VoiceCommandRegistry.INSTANCE.reloadFromServerDefinitions();
                 service.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords());

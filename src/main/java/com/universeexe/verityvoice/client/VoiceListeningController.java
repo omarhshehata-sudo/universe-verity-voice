@@ -117,8 +117,10 @@ public final class VoiceListeningController {
                 VerityVoiceHudController.INSTANCE.showVoiceDisabled();
                 return;
             }
-            if (VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.MISSING) {
-                VerityVoiceHudController.INSTANCE.showModelMissing();
+            // Do NOT early-out on MODEL_MISSING — ensureLoaded retries each press so installing
+            // the model mid-session works without restart. Native permanent fail is checked below.
+            if (worker.vosk().nativesPermanentlyFailed()) {
+                VerityVoiceHudController.INSTANCE.showNativeError();
                 return;
             }
             if (proximity.status() == ProximityStatus.NONE) {

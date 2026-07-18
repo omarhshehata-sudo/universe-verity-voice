@@ -55,7 +55,7 @@ public final class VerityVoiceHudStyle {
             case PROCESSING -> ACCENT_AMBER;
             case COMMAND_RECOGNIZED -> ACCENT_SUCCESS;
             case NO_COMMAND -> ACCENT_MUTED;
-            case VERITY_TOO_FAR, MICROPHONE_ERROR, MODEL_MISSING, VOICE_DISABLED -> ACCENT_ERROR;
+            case VERITY_TOO_FAR, MICROPHONE_ERROR, MODEL_MISSING, NATIVE_ERROR, VOICE_DISABLED -> ACCENT_ERROR;
             case NO_VERITY -> ACCENT_AMBER;
             case HIDDEN -> BORDER_IDLE;
         };

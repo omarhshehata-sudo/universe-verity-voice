@@ -8,7 +8,6 @@ import com.universeexe.verityvoice.common.VoiceIntents;
 import com.universeexe.verityvoice.common.config.VoiceCommonConfig;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.RegistryObject;
@@ -31,6 +30,12 @@ public final class VerityVoiceGameplayResponses {
             "okay_where_are_we_going",
             "alright_right_behind_you",
             "lead_the_way"
+    };
+
+    private static final int[] FOLLOW_LINE_DURATIONS = {
+            VerityEntity.DUR_OKAY_WHERE_ARE_WE_GOING,
+            VerityEntity.DUR_ALRIGHT_RIGHT_BEHIND_YOU,
+            VerityEntity.DUR_LEAD_THE_WAY
     };
 
     public VerityVoiceGameplayResponses() {
@@ -80,21 +85,10 @@ public final class VerityVoiceGameplayResponses {
     }
 
     private static void handleFollow(ServerPlayer player, VerityEntity verity) {
-        // Server-side equal pick among three lines — playSound(null, ...) syncs the chosen event to all clients.
+        // Server-side equal pick among three lines — playVoiceLine syncs sound + talking anim duration.
         int pick = verity.getRandom().nextInt(FOLLOW_LINES.length);
         SoundEvent line = FOLLOW_LINES[pick].get();
-
-        verity.level().playSound(
-                null,
-                verity.getX(),
-                verity.getY(),
-                verity.getZ(),
-                line,
-                SoundSource.NEUTRAL,
-                0.95f,
-                1.0f
-        );
-        verity.beginTalkingForTicks(50);
+        verity.playVoiceLine(line, FOLLOW_LINE_DURATIONS[pick]);
         verity.startFollowingOwner();
 
         if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get()) {

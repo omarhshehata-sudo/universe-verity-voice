@@ -181,6 +181,13 @@ public final class VerityVoiceHudController {
         enter(VerityVoiceHudState.MODEL_MISSING, 2200L);
     }
 
+    public void showNativeError() {
+        if (!indicatorEnabled() || !VoiceClientConfig.SHOW_UNAVAILABLE_STATE.get()) {
+            return;
+        }
+        enter(VerityVoiceHudState.NATIVE_ERROR, 2400L);
+    }
+
     public void showVoiceDisabled() {
         if (!indicatorEnabled()) {
             return;
@@ -336,6 +343,12 @@ public final class VerityVoiceHudController {
         if (awaitingCapture || logicalState == VerityVoiceHudState.READY) {
             if (capturing || mic == VoiceRecognitionState.MicStatus.LISTENING) {
                 setListening();
+            } else if (mic == VoiceRecognitionState.MicStatus.NATIVE_ERROR
+                    || (mic == VoiceRecognitionState.MicStatus.ERROR
+                    && VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.ERROR
+                    && VoiceListeningController.INSTANCE.worker().vosk().nativesPermanentlyFailed())) {
+                showNativeError();
+                awaitingCapture = false;
             } else if (mic == VoiceRecognitionState.MicStatus.ERROR) {
                 showMicrophoneError();
                 awaitingCapture = false;
@@ -344,8 +357,12 @@ public final class VerityVoiceHudController {
                 showModelMissing();
                 awaitingCapture = false;
             } else if (now - stateEnteredAtMs > 800L && awaitingCapture && !capturing) {
-                // Start request failed quietly.
-                if (VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.MISSING) {
+                // Start request failed quietly — re-check live status (model may have been installed).
+                if (VoiceRecognitionState.micStatus() == VoiceRecognitionState.MicStatus.NATIVE_ERROR
+                        || VoiceListeningController.INSTANCE.worker().vosk().nativesPermanentlyFailed()) {
+                    showNativeError();
+                } else if (VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.MISSING
+                        || VoiceRecognitionState.micStatus() == VoiceRecognitionState.MicStatus.MODEL_MISSING) {
                     showModelMissing();
                 } else if (!VoiceRecognitionState.lastError().isBlank()) {
                     showMicrophoneError();
