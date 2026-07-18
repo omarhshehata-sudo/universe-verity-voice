@@ -40,6 +40,13 @@ public final class VoiceCommandRegistry {
         words.add("hello");
         words.add("hi");
         words.add("hey");
+        words.add("hiya");
+        words.add("howdy");
+        words.add("yo");
+        words.add("hullo");
+        words.add("hallo");
+        words.add("hi");
+        words.add("hey");
         words.add("make");
         words.add("sound");
         words.add("noise");

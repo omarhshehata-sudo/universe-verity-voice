@@ -27,7 +27,11 @@ public final class VoiceTextNormalizer {
                 .replace("favourite", "favorite")
                 .replace("veritye", "verity")
                 .replace("verety", "verity")
-                .replace("ver it e", "verity");
+                .replace("ver it e", "verity")
+                .replace("hullo", "hello")
+                .replace("hallo", "hello")
+                .replace("helo", "hello")
+                .replace("hellow", "hello");
         text = PUNCT.matcher(text).replaceAll(" ");
         text = MULTI_SPACE.matcher(text).replaceAll(" ").trim();
 

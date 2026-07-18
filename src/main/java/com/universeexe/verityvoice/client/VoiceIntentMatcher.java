@@ -47,6 +47,12 @@ public final class VoiceIntentMatcher {
             return followMe;
         }
 
+        // Explicit HELLO rule: hi / hello / hey (optionally with Verity) on short utterances.
+        MatchResult hello = matchHelloGreeting(normalized, withoutWake, hasWake, mode, commands);
+        if (hello != null) {
+            return hello;
+        }
+
         for (VoiceCommandDefinition def : commands) {
             if (!def.enabled()) {
                 continue;
@@ -87,6 +93,65 @@ public final class VoiceIntentMatcher {
             return null;
         }
         return best;
+    }
+
+    private static final Set<String> GREETING_WORDS = Set.of(
+            "hi", "hello", "hey", "hiya", "howdy", "yo", "hullo", "hallo"
+    );
+
+    /**
+     * Push-to-talk friendly greetings: "hi", "hello", "hey verity", etc.
+     * Keeps utterances short so casual chat does not false-trigger.
+     */
+    @Nullable
+    private static MatchResult matchHelloGreeting(
+            String full,
+            String withoutWake,
+            boolean hasWake,
+            ListeningMode mode,
+            List<VoiceCommandDefinition> commands
+    ) {
+        if ((mode == ListeningMode.WAKE_WORD || mode == ListeningMode.NEARBY_CONTINUOUS) && !hasWake) {
+            return null;
+        }
+        Set<String> fullTokens = tokens(full);
+        Set<String> bodyTokens = tokens(withoutWake.isBlank() ? full : withoutWake);
+        boolean hasGreeting = false;
+        for (String g : GREETING_WORDS) {
+            if (fullTokens.contains(g) || bodyTokens.contains(g)) {
+                hasGreeting = true;
+                break;
+            }
+        }
+        if (!hasGreeting) {
+            return null;
+        }
+        // Short greeting only: greeting ± verity ± one filler (there/again).
+        if (fullTokens.size() > 4 || bodyTokens.size() > 3) {
+            return null;
+        }
+        Set<String> allowedExtra = Set.of("verity", "verety", "veritye", "there", "again", "you");
+        for (String t : bodyTokens) {
+            if (GREETING_WORDS.contains(t) || allowedExtra.contains(t)) {
+                continue;
+            }
+            return null;
+        }
+        VoiceCommandDefinition helloDef = null;
+        for (VoiceCommandDefinition def : commands) {
+            if (VoiceIntents.HELLO.equals(def.eventId()) && def.enabled()) {
+                helloDef = def;
+                break;
+            }
+        }
+        if (helloDef == null) {
+            return null;
+        }
+        float score = hasWake ? 0.98f : (mode == ListeningMode.PUSH_TO_TALK ? 0.96f : 0.0f);
+        if (score <= 0.0f) {
+            return null;
+        }
+        return new MatchResult(VoiceIntents.HELLO, score, helloDef);
     }
 
     @Nullable

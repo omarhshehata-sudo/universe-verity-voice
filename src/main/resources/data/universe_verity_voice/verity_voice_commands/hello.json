@@ -1,19 +1,32 @@
 {
   "id": "hello",
   "enabled": true,
-  "wake_word_required": true,
+  "wake_word_required": false,
   "allowed_during_introduction": false,
   "maximum_distance": 12.0,
-  "minimum_confidence": 0.55,
+  "minimum_confidence": 0.50,
   "cooldown_ticks": 40,
-  "priority": 60,
+  "priority": 70,
   "aliases": [
     "hello verity",
     "hi verity",
     "hey verity",
+    "hello there verity",
+    "hi there verity",
+    "hey there verity",
+    "verity hello",
+    "verity hi",
+    "verity hey",
+    "hello there",
+    "hi there",
+    "hey there",
     "hello",
     "hi",
-    "hey"
+    "hey",
+    "hiya",
+    "howdy",
+    "yo verity",
+    "yo"
   ],
   "event_id": "universe_verity_voice:hello"
 }
