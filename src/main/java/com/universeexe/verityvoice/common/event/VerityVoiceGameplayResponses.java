@@ -10,12 +10,26 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * First gameplay responses layered on the speech-to-intent foundation.
- * FOLLOW: play one of two voice lines (50/50) + start rolling follow. STAY: stop following.
+ * FOLLOW: play one of three voice lines (~33% each) + start rolling follow. STAY: stop following.
  */
 public final class VerityVoiceGameplayResponses {
+    @SuppressWarnings("unchecked")
+    private static final RegistryObject<SoundEvent>[] FOLLOW_LINES = new RegistryObject[]{
+            VeritySounds.VOICE_OKAY_WHERE_ARE_WE_GOING,
+            VeritySounds.VOICE_ALRIGHT_RIGHT_BEHIND_YOU,
+            VeritySounds.VOICE_LEAD_THE_WAY
+    };
+
+    private static final String[] FOLLOW_LINE_IDS = {
+            "okay_where_are_we_going",
+            "alright_right_behind_you",
+            "lead_the_way"
+    };
+
     public VerityVoiceGameplayResponses() {
     }
 
@@ -38,11 +52,9 @@ public final class VerityVoiceGameplayResponses {
     }
 
     private static void handleFollow(ServerPlayer player, VerityEntity verity) {
-        // Server-side 50/50 pick — level.playSound(null, ...) broadcasts the same chosen event to all clients.
-        boolean useBehindYou = verity.getRandom().nextBoolean();
-        SoundEvent line = useBehindYou
-                ? VeritySounds.VOICE_ALRIGHT_RIGHT_BEHIND_YOU.get()
-                : VeritySounds.VOICE_OKAY_WHERE_ARE_WE_GOING.get();
+        // Server-side equal pick among three lines — playSound(null, ...) syncs the chosen event to all clients.
+        int pick = verity.getRandom().nextInt(FOLLOW_LINES.length);
+        SoundEvent line = FOLLOW_LINES[pick].get();
 
         verity.level().playSound(
                 null,
@@ -54,14 +66,13 @@ public final class VerityVoiceGameplayResponses {
                 0.95f,
                 1.0f
         );
-        // Both lines are ~2–3s; keep talking mouth for ~2.5s.
         verity.beginTalkingForTicks(50);
         verity.startFollowingOwner();
 
         if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get()) {
             UniverseVerityVoice.LOGGER.info(
                     "[VerityVoice] FOLLOW response: line={} + startFollowing for {} / verity={}",
-                    useBehindYou ? "alright_right_behind_you" : "okay_where_are_we_going",
+                    FOLLOW_LINE_IDS[pick],
                     player.getGameProfile().getName(),
                     verity.getId()
             );
