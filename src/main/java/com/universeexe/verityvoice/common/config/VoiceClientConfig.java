@@ -51,7 +51,7 @@ public final class VoiceClientConfig {
         CONSENT_ANSWERED = builder.define("consentAnswered", false);
         LISTENING_MODE = builder.define("listeningMode", "PUSH_TO_TALK");
         MICROPHONE_DEVICE = builder.define("microphoneDevice", "DEFAULT");
-        PUSH_TO_TALK_TRAILING_MS = builder.defineInRange("pushToTalkTrailingMilliseconds", 400, 100, 2000);
+        PUSH_TO_TALK_TRAILING_MS = builder.defineInRange("pushToTalkTrailingMilliseconds", 550, 100, 2000);
         WAKE_WORD = builder.define("wakeWord", "verity");
         WAKE_WORD_COMMAND_WINDOW_SECONDS = builder.defineInRange("wakeWordCommandWindowSeconds", 4.0, 1.0, 15.0);
         NORMAL_LISTENING_DISTANCE = builder.defineInRange("normalListeningDistance", 12.0, 1.0, 32.0);
@@ -84,7 +84,10 @@ public final class VoiceClientConfig {
         SUPPRESS_WHILE_CHAT_OPEN = builder.define("suppressRecognitionWhileChatOpen", true);
         SUPPRESS_WHILE_TYPING = builder.define("suppressRecognitionWhileTyping", true);
         SUPPRESS_DURING_MENUS = builder.define("suppressRecognitionDuringMenus", true);
-        USE_RESTRICTED_GRAMMAR = builder.define("useRestrictedGrammar", true);
+        USE_RESTRICTED_GRAMMAR = builder.comment(
+                        "Tiny command grammars make Vosk invent short words like 'hi' from noise. "
+                                + "Default false = free English recognition (recommended).")
+                .define("useRestrictedGrammar", false);
         DEBUG_LOGGING = builder.define("debugLogging", false);
         DEBUG_OVERLAY = builder.define("debugOverlay", false);
         MODEL_FOLDER_NAME = builder.define("modelFolderName", "vosk-model-small-en-us-0.15");

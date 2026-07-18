@@ -277,6 +277,16 @@ public final class VoiceListeningController {
         }
 
         float combined = Math.min(match.score(), result.speechConfidence());
+        // Reject weak / empty-sounding recognitions (common when grammar guesses "hi").
+        float minConf = Math.max(
+                match.definition().minimumConfidence(),
+                VoiceClientConfig.MINIMUM_RECOGNITION_CONFIDENCE.get().floatValue()
+        );
+        if (combined < minConf) {
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
+            VerityVoiceHudController.INSTANCE.showNoCommand();
+            return;
+        }
         VoiceRecognitionState.setMatchScore(match.score());
         VoiceRecognitionState.setMatchedIntent(match.intentId().toString());
         VoiceRecognitionState.setSpeechConfidence(result.speechConfidence());

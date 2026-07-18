@@ -47,13 +47,17 @@ public final class VoiceIntentMatcher {
             return followMe;
         }
 
-        // Explicit HELLO rule: hi / hello / hey (optionally with Verity) on short utterances.
+        // Exact short greetings only (no fuzzy "anything with hi" — that caused HELLO spam).
         MatchResult hello = matchHelloGreeting(normalized, withoutWake, hasWake, mode, commands);
         if (hello != null) {
             return hello;
         }
 
         for (VoiceCommandDefinition def : commands) {
+            // Skip hello aliases here — handled only by exact short-greeting matcher.
+            if (VoiceIntents.HELLO.equals(def.eventId())) {
+                continue;
+            }
             if (!def.enabled()) {
                 continue;
             }
@@ -95,13 +99,29 @@ public final class VoiceIntentMatcher {
         return best;
     }
 
-    private static final Set<String> GREETING_WORDS = Set.of(
-            "hi", "hello", "hey", "hiya", "howdy", "yo", "hullo", "hallo"
+    /** Exact normalized phrases that count as HELLO (no substring / token fuzz). */
+    private static final Set<String> EXACT_GREETINGS = Set.of(
+            "hi",
+            "hello",
+            "hey",
+            "hiya",
+            "hi verity",
+            "hello verity",
+            "hey verity",
+            "hi there",
+            "hello there",
+            "hey there",
+            "hi there verity",
+            "hello there verity",
+            "hey there verity",
+            "verity hello",
+            "verity hi",
+            "verity hey"
     );
 
     /**
-     * Push-to-talk friendly greetings: "hi", "hello", "hey verity", etc.
-     * Keeps utterances short so casual chat does not false-trigger.
+     * Exact greeting phrases only. Free-speech Vosk often invents "hi" under a tiny grammar;
+     * requiring an exact phrase stops that spam while still allowing hi/hello/hey.
      */
     @Nullable
     private static MatchResult matchHelloGreeting(
@@ -114,27 +134,10 @@ public final class VoiceIntentMatcher {
         if ((mode == ListeningMode.WAKE_WORD || mode == ListeningMode.NEARBY_CONTINUOUS) && !hasWake) {
             return null;
         }
-        Set<String> fullTokens = tokens(full);
-        Set<String> bodyTokens = tokens(withoutWake.isBlank() ? full : withoutWake);
-        boolean hasGreeting = false;
-        for (String g : GREETING_WORDS) {
-            if (fullTokens.contains(g) || bodyTokens.contains(g)) {
-                hasGreeting = true;
-                break;
-            }
-        }
-        if (!hasGreeting) {
-            return null;
-        }
-        // Short greeting only: greeting ± verity ± one filler (there/again).
-        if (fullTokens.size() > 4 || bodyTokens.size() > 3) {
-            return null;
-        }
-        Set<String> allowedExtra = Set.of("verity", "verety", "veritye", "there", "again", "you");
-        for (String t : bodyTokens) {
-            if (GREETING_WORDS.contains(t) || allowedExtra.contains(t)) {
-                continue;
-            }
+        String candidate = full.trim();
+        String stripped = withoutWake == null ? "" : withoutWake.trim();
+        boolean exact = EXACT_GREETINGS.contains(candidate) || EXACT_GREETINGS.contains(stripped);
+        if (!exact) {
             return null;
         }
         VoiceCommandDefinition helloDef = null;
@@ -147,7 +150,7 @@ public final class VoiceIntentMatcher {
         if (helloDef == null) {
             return null;
         }
-        float score = hasWake ? 0.98f : (mode == ListeningMode.PUSH_TO_TALK ? 0.96f : 0.0f);
+        float score = hasWake ? 0.97f : (mode == ListeningMode.PUSH_TO_TALK ? 0.93f : 0.0f);
         if (score <= 0.0f) {
             return null;
         }

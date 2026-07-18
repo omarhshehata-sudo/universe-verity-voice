@@ -36,6 +36,8 @@ public final class VoiceRecognitionWorker {
     private long trailingUntilMs;
     private String lastSubmittedNormalized = "";
     private long lastSubmittedAtMs;
+    /** Best mid-hold final from Vosk; intents dispatch only on flush (PTT release). */
+    private volatile String pendingUtteranceText = "";
 
     public record UtteranceResult(String raw, String normalized, float speechConfidence) {
     }
@@ -141,8 +143,15 @@ public final class VoiceRecognitionWorker {
                     VoiceRecognitionState.setPartialText(partial);
                 }
                 if (utteranceEnd) {
+                    // Mid-hold finals update preview only — never fire intents here.
+                    // Restricted grammar + short words like "hi" used to spam HELLO every segment.
                     String text = service.finalResultText();
-                    handleRecognized(text, false);
+                    if (text != null && !text.isBlank()) {
+                        pendingUtteranceText = text;
+                        String normalized = VoiceTextNormalizer.normalize(text);
+                        VoiceRecognitionState.setFinalText(text);
+                        VoiceRecognitionState.setNormalizedText(normalized);
+                    }
                 }
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
@@ -205,6 +214,7 @@ public final class VoiceRecognitionWorker {
                 }
                 if (captureService.startCapture()) {
                     service.resetUtterance();
+                    pendingUtteranceText = "";
                     listening.set(true);
                     trailingUntilMs = 0;
                     VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.LISTENING);
@@ -263,18 +273,24 @@ public final class VoiceRecognitionWorker {
     private void finishUtterance() {
         VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.PROCESSING);
         String text = voskService().flushFinal();
+        if ((text == null || text.isBlank()) && pendingUtteranceText != null && !pendingUtteranceText.isBlank()) {
+            text = pendingUtteranceText;
+        }
+        pendingUtteranceText = "";
         handleRecognized(text, true);
         voskService().resetUtterance();
         VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.IDLE);
     }
 
     private void handleRecognized(String text, boolean finalFlush) {
+        // Intents only on the end of a push-to-talk / listen segment.
+        if (!finalFlush) {
+            return;
+        }
         if (text == null || text.isBlank()) {
-            if (finalFlush) {
-                VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
-                Minecraft.getInstance().execute(() ->
-                        com.universeexe.verityvoice.client.hud.VerityVoiceHudController.INSTANCE.showNoCommand());
-            }
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
+            Minecraft.getInstance().execute(() ->
+                    com.universeexe.verityvoice.client.hud.VerityVoiceHudController.INSTANCE.showNoCommand());
             return;
         }
         String normalized = VoiceTextNormalizer.normalize(text);
@@ -282,7 +298,11 @@ public final class VoiceRecognitionWorker {
         VoiceRecognitionState.setNormalizedText(normalized);
 
         long now = System.currentTimeMillis();
-        if (normalized.equals(lastSubmittedNormalized) && now - lastSubmittedAtMs < 1500L) {
+        // Stronger debounce — stops hello spam from similar mishears.
+        if (normalized.equals(lastSubmittedNormalized) && now - lastSubmittedAtMs < 4000L) {
+            return;
+        }
+        if (now - lastSubmittedAtMs < 1200L) {
             return;
         }
 
@@ -301,9 +321,10 @@ public final class VoiceRecognitionWorker {
             return 0.0f;
         }
         int words = normalized.split("\\s+").length;
-        float base = Math.min(0.9f, 0.45f + 0.08f * words);
-        if (raw != null && raw.equalsIgnoreCase(normalized)) {
-            base += 0.05f;
+        // Short clear phrases (hi / follow me) need enough confidence to pass gates.
+        float base = Math.min(0.92f, 0.70f + 0.05f * Math.min(words, 5));
+        if (raw != null && !raw.isBlank()) {
+            base += 0.03f;
         }
         return Math.min(1.0f, base);
     }

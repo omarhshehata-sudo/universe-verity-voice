@@ -4,8 +4,8 @@
   "wake_word_required": false,
   "allowed_during_introduction": false,
   "maximum_distance": 12.0,
-  "minimum_confidence": 0.50,
-  "cooldown_ticks": 40,
+  "minimum_confidence": 0.70,
+  "cooldown_ticks": 80,
   "priority": 70,
   "aliases": [
     "hello verity",
@@ -23,10 +23,7 @@
     "hello",
     "hi",
     "hey",
-    "hiya",
-    "howdy",
-    "yo verity",
-    "yo"
+    "hiya"
   ],
   "event_id": "universe_verity_voice:hello"
 }
