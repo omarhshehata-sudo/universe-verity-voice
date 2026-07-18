@@ -1,8 +1,9 @@
 package com.universeexe.verityvoice.client;
 
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudController;
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudOverlay;
 import com.universeexe.verityvoice.client.hud.VoiceConsentScreen;
 import com.universeexe.verityvoice.client.hud.VoiceDebugOverlay;
-import com.universeexe.verityvoice.client.hud.VoiceMicHudOverlay;
 import com.universeexe.verityvoice.common.config.VoiceClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
@@ -27,7 +28,8 @@ public final class VerityVoiceClient {
         modBus.addListener(VerityVoiceClient::clientSetup);
         modBus.addListener(VoiceKeyMappings::register);
         MinecraftForge.EVENT_BUS.register(VoiceListeningController.INSTANCE);
-        MinecraftForge.EVENT_BUS.register(new VoiceMicHudOverlay());
+        MinecraftForge.EVENT_BUS.register(VerityVoiceHudController.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(new VerityVoiceHudOverlay());
         MinecraftForge.EVENT_BUS.register(new VoiceDebugOverlay());
         MinecraftForge.EVENT_BUS.register(new VerityVoiceClient());
         MinecraftForge.EVENT_BUS.addListener(VerityVoiceClient::onRegisterClientCommands);

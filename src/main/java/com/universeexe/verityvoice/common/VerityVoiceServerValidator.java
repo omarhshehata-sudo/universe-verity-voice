@@ -45,28 +45,28 @@ public final class VerityVoiceServerValidator {
             @Nullable String sanitizedPhrase
     ) {
         if (!VoiceCommonConfig.VOICE_INTENT_EVENTS_ENABLED.get()) {
-            return RejectReason.DISABLED;
+            return reject(player, intentId, RejectReason.DISABLED);
         }
         if (player == null || !player.isAlive()) {
             return RejectReason.DEAD;
         }
         if (!VoiceIntents.isRegistered(intentId) || intentId.equals(VoiceIntents.UNKNOWN)) {
-            return RejectReason.UNKNOWN_INTENT;
+            return reject(player, intentId, RejectReason.UNKNOWN_INTENT);
         }
 
         Optional<VoiceCommandDefinition> defOpt = VoiceCommandReloadListener.INSTANCE.get(intentId);
         if (defOpt.isEmpty() || !defOpt.get().enabled()) {
-            return RejectReason.UNKNOWN_INTENT;
+            return reject(player, intentId, RejectReason.UNKNOWN_INTENT);
         }
         VoiceCommandDefinition def = defOpt.get();
 
         if (confidence < def.minimumConfidence()) {
-            return RejectReason.LOW_CONFIDENCE;
+            return reject(player, intentId, RejectReason.LOW_CONFIDENCE);
         }
 
         long gameTime = player.level().getGameTime();
         if (!VerityVoiceCooldownManager.INSTANCE.acceptSequence(player, sequence)) {
-            return RejectReason.DUPLICATE_SEQUENCE;
+            return reject(player, intentId, RejectReason.DUPLICATE_SEQUENCE);
         }
         if (!VerityVoiceCooldownManager.INSTANCE.allowRate(
                 player,
@@ -74,42 +74,42 @@ public final class VerityVoiceServerValidator {
                 VoiceCommonConfig.INTENT_RATE_LIMIT_COUNT.get(),
                 VoiceCommonConfig.INTENT_RATE_LIMIT_WINDOW_TICKS.get()
         )) {
-            return RejectReason.RATE_LIMIT;
+            return reject(player, intentId, RejectReason.RATE_LIMIT);
         }
         if (VerityVoiceCooldownManager.INSTANCE.isOnCooldown(player, intentId, gameTime)) {
-            return RejectReason.COOLDOWN;
+            return reject(player, intentId, RejectReason.COOLDOWN);
         }
 
         Entity verity = player.level().getEntity(verityEntityId);
         if (verity == null || !verity.isAlive()) {
-            return RejectReason.BAD_ENTITY;
+            return reject(player, intentId, RejectReason.BAD_ENTITY);
         }
         if (verity.level() != player.level()) {
-            return RejectReason.WRONG_DIMENSION;
+            return reject(player, intentId, RejectReason.WRONG_DIMENSION);
         }
         if (VoiceCommonConfig.REJECT_DEMON_VERITY.get() && OfficialVerityVoiceBridge.isDemonVerity(verity)) {
-            return RejectReason.DEMON;
+            return reject(player, intentId, RejectReason.DEMON);
         }
         if (!OfficialVerityVoiceBridge.isVerityAvailableForConversation(verity)) {
-            return RejectReason.NOT_NORMAL_VERITY;
+            return reject(player, intentId, RejectReason.NOT_NORMAL_VERITY);
         }
 
         if (VoiceCommonConfig.REQUIRE_NEARBY_VERITY.get()) {
             double maxDist = Math.min(def.maximumDistance(), VoiceCommonConfig.MAXIMUM_ALLOWED_DISTANCE.get());
             if (player.distanceTo(verity) > maxDist) {
-                return RejectReason.TOO_FAR;
+                return reject(player, intentId, RejectReason.TOO_FAR);
             }
         }
 
         if (VoiceCommonConfig.REQUIRE_ASSOCIATED_VERITY.get()
                 && !OfficialVerityVoiceBridge.belongsToPlayer(verity, player)) {
-            return RejectReason.WRONG_OWNER;
+            return reject(player, intentId, RejectReason.WRONG_OWNER);
         }
 
         boolean introDone = OfficialVerityVoiceBridge.isIntroductionComplete(player);
         if (!introDone && !def.allowedDuringIntroduction()
                 && !VoiceCommonConfig.ALLOW_COMMANDS_BEFORE_INTRODUCTION.get()) {
-            return RejectReason.INTRO_BLOCKED;
+            return reject(player, intentId, RejectReason.INTRO_BLOCKED);
         }
 
         String phrase = sanitizedPhrase == null ? "" : sanitizePhrase(sanitizedPhrase);
@@ -133,6 +133,13 @@ public final class VerityVoiceServerValidator {
         }
         ack(player, true, intentId, "accepted");
         return RejectReason.OK;
+    }
+
+    private static RejectReason reject(ServerPlayer player, ResourceLocation intentId, RejectReason reason) {
+        if (player != null && intentId != null) {
+            ack(player, false, intentId, reason.name());
+        }
+        return reason;
     }
 
     private static void ack(ServerPlayer player, boolean accepted, ResourceLocation intentId, String detail) {

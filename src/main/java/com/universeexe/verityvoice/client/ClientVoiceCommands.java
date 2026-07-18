@@ -3,8 +3,11 @@ package com.universeexe.verityvoice.client;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudController;
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudState;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
@@ -75,6 +78,39 @@ public final class ClientVoiceCommands {
                                     ClientVoiceCommandBridge.setTranscript(BoolArgumentType.getBool(ctx, "value"));
                                     return 1;
                                 })))
+                .then(Commands.literal("huddebug")
+                        .then(Commands.argument("value", BoolArgumentType.bool())
+                                .executes(ctx -> {
+                                    boolean value = BoolArgumentType.getBool(ctx, "value");
+                                    VerityVoiceHudController.INSTANCE.setHudDebug(value);
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("[VerityVoice] huddebug=" + value), false);
+                                    return 1;
+                                })))
+                .then(Commands.literal("hudstate")
+                        .then(Commands.argument("state", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    String raw = StringArgumentType.getString(ctx, "state");
+                                    VerityVoiceHudState state = VerityVoiceHudState.fromDebugName(raw);
+                                    if (state == null) {
+                                        ctx.getSource().sendFailure(Component.literal(
+                                                "[VerityVoice] Unknown hudstate. Try: ready, listening, processing, "
+                                                        + "recognized, no_command, too_far, no_verity, "
+                                                        + "microphone_error, model_missing, voice_disabled, hidden"));
+                                        return 0;
+                                    }
+                                    VerityVoiceHudController.INSTANCE.preview(state);
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("[VerityVoice] hudstate preview=" + state), false);
+                                    return 1;
+                                })))
+                .then(Commands.literal("hudreset")
+                        .executes(ctx -> {
+                            VerityVoiceHudController.INSTANCE.reset();
+                            ctx.getSource().sendSuccess(
+                                    () -> Component.literal("[VerityVoice] HUD reset"), false);
+                            return 1;
+                        }))
         );
     }
 }

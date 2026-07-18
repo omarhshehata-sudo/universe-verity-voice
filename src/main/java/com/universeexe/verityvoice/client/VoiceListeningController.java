@@ -1,6 +1,8 @@
 package com.universeexe.verityvoice.client;
 
 import com.universeexe.verityvoice.UniverseVerityVoice;
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudController;
+import com.universeexe.verityvoice.client.hud.VerityVoiceHudState;
 import com.universeexe.verityvoice.common.OfficialVerityVoiceBridge;
 import com.universeexe.verityvoice.common.VoiceIntents;
 import com.universeexe.verityvoice.common.config.VoiceClientConfig;
@@ -26,12 +28,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class VoiceListeningController {
     public static final VoiceListeningController INSTANCE = new VoiceListeningController();
 
+    private static final double EXTENDED_PROXIMITY_RANGE = 48.0;
+
     private final VoiceRecognitionWorker worker = new VoiceRecognitionWorker();
     private final AtomicLong sequence = new AtomicLong(1);
     private boolean pushHeld;
     private long wakeWindowUntilMs;
     private boolean started;
     private long nearbyScanCooldown;
+    private boolean listeningThisHold;
 
     private VoiceListeningController() {
         worker.setUtteranceHandler(this::onUtterance);
@@ -64,48 +69,98 @@ public final class VoiceListeningController {
             if (worker.isListening()) {
                 worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
             }
-            pushHeld = false;
+            if (pushHeld) {
+                pushHeld = false;
+                listeningThisHold = false;
+                VerityVoiceHudController.INSTANCE.onPushReleased(false);
+            }
             return;
         }
 
         updateNearbyCache(player);
 
-        if (!VoiceClientConfig.VOICE_COMMANDS_ENABLED.get()) {
-            return;
-        }
         if (shouldSuppress(mc)) {
             if (worker.isListening() && ListeningMode.fromConfig(VoiceClientConfig.LISTENING_MODE.get()) != ListeningMode.PUSH_TO_TALK) {
                 worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
+            }
+            if (ListeningMode.fromConfig(VoiceClientConfig.LISTENING_MODE.get()) == ListeningMode.PUSH_TO_TALK
+                    && pushHeld) {
+                // Keep held tracking but do not capture while suppressed.
+                if (worker.isListening()) {
+                    worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
+                    listeningThisHold = false;
+                }
             }
             return;
         }
 
         ListeningMode mode = ListeningMode.fromConfig(VoiceClientConfig.LISTENING_MODE.get());
-        boolean verityNearby = isVerityInRange(player);
+        Proximity proximity = evaluateProximity(player);
 
         switch (mode) {
-            case PUSH_TO_TALK -> handlePushToTalk(verityNearby);
-            case WAKE_WORD -> handleWakeWord(verityNearby);
-            case NEARBY_CONTINUOUS -> handleNearbyContinuous(verityNearby);
+            case PUSH_TO_TALK -> handlePushToTalk(proximity);
+            case WAKE_WORD -> handleWakeWord(proximity.inRange());
+            case NEARBY_CONTINUOUS -> handleNearbyContinuous(proximity.inRange());
         }
     }
 
-    private void handlePushToTalk(boolean verityNearby) {
+    private void handlePushToTalk(Proximity proximity) {
         boolean down = VoiceKeyMappings.TALK_TO_VERITY.isDown();
         if (down && !pushHeld) {
             pushHeld = true;
-            if (verityNearby) {
-                worker.offer(VoiceRecognitionWorker.Command.START_LISTEN);
-            } else {
-                VoiceRecognitionState.setLastError("No Verity nearby");
+            listeningThisHold = false;
+            VerityVoiceHudController.INSTANCE.onPushPressed();
+            VerityVoiceHudController.INSTANCE.setLastVerityDistance(proximity.distance());
+
+            if (!VoiceClientConfig.VOICE_COMMANDS_ENABLED.get()) {
+                VerityVoiceHudController.INSTANCE.showVoiceDisabled();
+                return;
             }
+            if (VoiceRecognitionState.modelStatus() == VoiceRecognitionState.ModelStatus.MISSING) {
+                VerityVoiceHudController.INSTANCE.showModelMissing();
+                return;
+            }
+            if (proximity.status() == ProximityStatus.NONE) {
+                VoiceRecognitionState.setNearbyVerity("none");
+                VerityVoiceHudController.INSTANCE.showNoVerity();
+                return;
+            }
+            if (proximity.status() == ProximityStatus.TOO_FAR) {
+                VerityVoiceHudController.INSTANCE.showVerityTooFar();
+                return;
+            }
+
+            VerityVoiceHudController.INSTANCE.setReady();
+            worker.offer(VoiceRecognitionWorker.Command.START_LISTEN);
+            listeningThisHold = true;
         } else if (!down && pushHeld) {
             pushHeld = false;
-            worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
+            VerityVoiceHudState hudState = VerityVoiceHudController.INSTANCE.state();
+            boolean wasListening = listeningThisHold
+                    && (worker.isListening() || worker.capture().isCapturing()
+                    || hudState == VerityVoiceHudState.LISTENING
+                    || hudState == VerityVoiceHudState.READY);
+            if (listeningThisHold) {
+                worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
+            }
+            VerityVoiceHudController.INSTANCE.onPushReleased(wasListening);
+            listeningThisHold = false;
+        } else if (down && pushHeld) {
+            VerityVoiceHudController.INSTANCE.setLastVerityDistance(proximity.distance());
+            VerityVoiceHudState hudState = VerityVoiceHudController.INSTANCE.logicalState();
+            if (listeningThisHold
+                    && (worker.isListening() || worker.capture().isCapturing())
+                    && hudState != VerityVoiceHudState.LISTENING
+                    && hudState != VerityVoiceHudState.READY) {
+                VerityVoiceHudController.INSTANCE.setListening();
+            }
         }
     }
 
     private void handleWakeWord(boolean verityNearby) {
+        if (!VoiceClientConfig.VOICE_COMMANDS_ENABLED.get()) {
+            return;
+        }
         if (!verityNearby) {
             if (worker.isListening()) {
                 worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
@@ -122,6 +177,9 @@ public final class VoiceListeningController {
     }
 
     private void handleNearbyContinuous(boolean verityNearby) {
+        if (!VoiceClientConfig.VOICE_COMMANDS_ENABLED.get()) {
+            return;
+        }
         if (!verityNearby) {
             if (worker.isListening()) {
                 worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
@@ -143,8 +201,8 @@ public final class VoiceListeningController {
         if (VoiceClientConfig.SUPPRESS_DURING_MENUS.get() && mc.screen != null
                 && !(mc.screen instanceof ChatScreen)
                 && !(mc.screen instanceof com.universeexe.verityvoice.client.hud.VoiceConsentScreen)) {
-            // Allow gameplay overlays; block generic menus.
-            if (mc.screen.isPauseScreen()) {
+            if (mc.screen.isPauseScreen()
+                    || mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen) {
                 return true;
             }
         }
@@ -157,19 +215,29 @@ public final class VoiceListeningController {
             return;
         }
         nearbyScanCooldown = now + 250L;
-        double range = VoiceClientConfig.NORMAL_LISTENING_DISTANCE.get();
-        Optional<Entity> near = OfficialVerityVoiceBridge.findNearestNormalVerity(player, range);
-        if (near.isPresent()) {
-            Entity e = near.get();
-            VoiceRecognitionState.setNearbyVerity(e.getId() + " @ " + String.format("%.1f", player.distanceTo(e)));
+        Proximity proximity = evaluateProximity(player);
+        VerityVoiceHudController.INSTANCE.setLastVerityDistance(proximity.distance());
+        if (proximity.status() == ProximityStatus.IN_RANGE && proximity.entity().isPresent()) {
+            Entity e = proximity.entity().get();
+            VoiceRecognitionState.setNearbyVerity(e.getId() + " @ " + String.format("%.1f", proximity.distance()));
+        } else if (proximity.status() == ProximityStatus.TOO_FAR) {
+            VoiceRecognitionState.setNearbyVerity("too_far @ " + String.format("%.1f", proximity.distance()));
         } else {
             VoiceRecognitionState.setNearbyVerity("none");
         }
     }
 
-    private boolean isVerityInRange(LocalPlayer player) {
-        double range = VoiceClientConfig.NORMAL_LISTENING_DISTANCE.get();
-        return OfficialVerityVoiceBridge.findNearestNormalVerity(player, range).isPresent();
+    private Proximity evaluateProximity(LocalPlayer player) {
+        double listenRange = VoiceClientConfig.NORMAL_LISTENING_DISTANCE.get();
+        Optional<Entity> near = OfficialVerityVoiceBridge.findNearestNormalVerity(player, listenRange);
+        if (near.isPresent()) {
+            return new Proximity(ProximityStatus.IN_RANGE, player.distanceTo(near.get()), near);
+        }
+        Optional<Entity> extended = OfficialVerityVoiceBridge.findNearestNormalVerity(player, EXTENDED_PROXIMITY_RANGE);
+        if (extended.isPresent()) {
+            return new Proximity(ProximityStatus.TOO_FAR, player.distanceTo(extended.get()), extended);
+        }
+        return Proximity.NONE;
     }
 
     private void onUtterance(VoiceRecognitionWorker.UtteranceResult result) {
@@ -201,6 +269,7 @@ public final class VoiceListeningController {
         if (match == null || match.intentId().equals(VoiceIntents.UNKNOWN) || match.definition() == null) {
             VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
             VoiceRecognitionState.setMatchedIntent("");
+            VerityVoiceHudController.INSTANCE.showNoCommand();
             return;
         }
 
@@ -213,8 +282,14 @@ public final class VoiceListeningController {
                 player, match.definition().maximumDistance()
         );
         if (verity.isEmpty()) {
-            VoiceRecognitionState.setLastError("No Verity in range for intent");
+            VoiceRecognitionState.setLastError("");
             VoiceRecognitionState.setPacketStatus(VoiceRecognitionState.PacketStatus.REJECTED);
+            Optional<Entity> far = OfficialVerityVoiceBridge.findNearestNormalVerity(player, EXTENDED_PROXIMITY_RANGE);
+            if (far.isPresent()) {
+                VerityVoiceHudController.INSTANCE.showVerityTooFar();
+            } else {
+                VerityVoiceHudController.INSTANCE.showNoVerity();
+            }
             return;
         }
 
@@ -235,7 +310,9 @@ public final class VoiceListeningController {
         );
         VerityVoiceNetwork.CHANNEL.sendToServer(packet);
         VoiceRecognitionState.setPacketStatus(VoiceRecognitionState.PacketStatus.SENT);
-        VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.COMMAND_DETECTED);
+        // Stay in PROCESSING until the server accepts — never show success early.
+        VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.RECOGNIZING);
+        VerityVoiceHudController.INSTANCE.setProcessing();
 
         if (VoiceClientConfig.SHOW_DETECTED_INTENT.get() || VoiceClientConfig.DEBUG_LOGGING.get()) {
             player.displayClientMessage(net.minecraft.network.chat.Component.literal(
@@ -255,10 +332,12 @@ public final class VoiceListeningController {
     @SubscribeEvent
     public void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         pushHeld = false;
+        listeningThisHold = false;
         wakeWindowUntilMs = 0;
         worker.offer(VoiceRecognitionWorker.Command.STOP_LISTEN);
         VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.OFF);
         VoiceRecognitionState.setPacketStatus(VoiceRecognitionState.PacketStatus.NONE);
+        VerityVoiceHudController.INSTANCE.reset();
     }
 
     public void enableVoice(boolean enabled) {
@@ -269,6 +348,20 @@ public final class VoiceListeningController {
             worker.offer(VoiceRecognitionWorker.Command.RELOAD_MODEL);
         } else {
             worker.offer(VoiceRecognitionWorker.Command.UNLOAD_MODEL);
+        }
+    }
+
+    private enum ProximityStatus {
+        NONE,
+        IN_RANGE,
+        TOO_FAR
+    }
+
+    private record Proximity(ProximityStatus status, double distance, Optional<Entity> entity) {
+        static final Proximity NONE = new Proximity(ProximityStatus.NONE, -1.0, Optional.empty());
+
+        boolean inRange() {
+            return status == ProximityStatus.IN_RANGE;
         }
     }
 }

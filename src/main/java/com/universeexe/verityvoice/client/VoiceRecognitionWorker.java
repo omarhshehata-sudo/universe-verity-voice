@@ -211,6 +211,8 @@ public final class VoiceRecognitionWorker {
         if (text == null || text.isBlank()) {
             if (finalFlush) {
                 VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
+                Minecraft.getInstance().execute(() ->
+                        com.universeexe.verityvoice.client.hud.VerityVoiceHudController.INSTANCE.showNoCommand());
             }
             return;
         }

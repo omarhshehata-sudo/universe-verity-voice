@@ -185,6 +185,10 @@ public final class VoiceRecognitionState {
         lastDetail = detail == null ? "" : detail;
         if (accepted) {
             micStatus = MicStatus.COMMAND_DETECTED;
+        } else if (micStatus == MicStatus.RECOGNIZING || micStatus == MicStatus.COMMAND_DETECTED) {
+            micStatus = MicStatus.NO_COMMAND;
         }
+        com.universeexe.verityvoice.client.hud.VerityVoiceHudController.INSTANCE
+                .onServerResult(accepted, intentId, detail);
     }
 }
