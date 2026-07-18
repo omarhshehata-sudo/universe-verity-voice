@@ -26,7 +26,8 @@ public final class VoiceRecognitionWorker {
     }
 
     private final MicrophoneCaptureService captureService = new MicrophoneCaptureService();
-    private final VoskRecognitionService vosk = new VoskRecognitionService();
+    /** Lazily created — constructing this must not run during mod/client class init. */
+    private VoskRecognitionService vosk;
     private final BlockingQueue<Command> commands = new ArrayBlockingQueue<>(32);
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean listening = new AtomicBoolean(false);
@@ -46,6 +47,20 @@ public final class VoiceRecognitionWorker {
         running.set(true);
         thread = new Thread(this::loop, "Universe-Verity-Voice-Recognition");
         thread.setDaemon(true);
+        thread.setUncaughtExceptionHandler((t, e) -> {
+            UniverseVerityVoice.LOGGER.error(
+                    "[VerityVoice] Recognition thread died ({}) — voice disabled, game continues: {}",
+                    t.getName(), e.toString()
+            );
+            listening.set(false);
+            running.set(false);
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.ERROR);
+            VoiceRecognitionState.setLastError("Recognition thread crashed: " + e.getClass().getSimpleName());
+            try {
+                captureService.closeQuietly();
+            } catch (Throwable ignored) {
+            }
+        });
         thread.start();
     }
 
@@ -63,7 +78,14 @@ public final class VoiceRecognitionWorker {
         return captureService;
     }
 
-    public VoskRecognitionService vosk() {
+    public synchronized VoskRecognitionService vosk() {
+        return voskService();
+    }
+
+    private synchronized VoskRecognitionService voskService() {
+        if (vosk == null) {
+            vosk = new VoskRecognitionService();
+        }
         return vosk;
     }
 
@@ -76,7 +98,9 @@ public final class VoiceRecognitionWorker {
         running.set(false);
         listening.set(false);
         captureService.closeQuietly();
-        vosk.close();
+        if (vosk != null) {
+            vosk.close();
+        }
         if (thread != null) {
             thread.interrupt();
         }
@@ -110,41 +134,59 @@ public final class VoiceRecognitionWorker {
                     continue;
                 }
                 VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.LISTENING);
-                boolean utteranceEnd = vosk.acceptWaveForm(buffer, read);
-                String partial = vosk.partialResultText();
+                VoskRecognitionService service = voskService();
+                boolean utteranceEnd = service.acceptWaveForm(buffer, read);
+                String partial = service.partialResultText();
                 if (partial != null && !partial.isBlank()) {
                     VoiceRecognitionState.setPartialText(partial);
                 }
                 if (utteranceEnd) {
-                    String text = vosk.finalResultText();
+                    String text = service.finalResultText();
                     handleRecognized(text, false);
                 }
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 break;
-            } catch (Exception ex) {
-                VoiceRecognitionState.setLastError(ex.getMessage());
+            } catch (Throwable ex) {
+                if (ex instanceof VirtualMachineError) {
+                    throw (VirtualMachineError) ex;
+                }
+                VoiceRecognitionState.setLastError(ex.getMessage() == null
+                        ? ex.getClass().getSimpleName()
+                        : ex.getMessage());
                 UniverseVerityVoice.LOGGER.warn("[VerityVoice] Recognition worker error: {}", ex.toString());
                 listening.set(false);
-                captureService.stopCapture();
+                try {
+                    captureService.stopCapture();
+                } catch (Throwable ignored) {
+                }
             }
         }
-        captureService.closeQuietly();
-        vosk.close();
+        try {
+            captureService.closeQuietly();
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (vosk != null) {
+                vosk.close();
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void handleCommand(Command cmd) {
         switch (cmd) {
             case START_LISTEN -> {
                 VoiceCommandRegistry.INSTANCE.reloadFromServerDefinitions();
-                if (!vosk.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords())) {
+                VoskRecognitionService service = voskService();
+                if (!service.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords())) {
                     if (VoiceRecognitionState.consumeModelMissingNotify()) {
                         Minecraft.getInstance().execute(() -> {
                             var player = Minecraft.getInstance().player;
                             if (player != null) {
                                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
                                         "[VerityVoice] Speech model missing. Expected: "
-                                                + vosk.expectedModelPath().toAbsolutePath()
+                                                + service.expectedModelPath().toAbsolutePath()
                                 ), false);
                             }
                         });
@@ -152,7 +194,7 @@ public final class VoiceRecognitionWorker {
                     return;
                 }
                 if (captureService.startCapture()) {
-                    vosk.resetUtterance();
+                    service.resetUtterance();
                     listening.set(true);
                     trailingUntilMs = 0;
                     VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.LISTENING);
@@ -161,21 +203,24 @@ public final class VoiceRecognitionWorker {
             case STOP_LISTEN -> {
                 trailingUntilMs = System.currentTimeMillis()
                         + VoiceClientConfig.PUSH_TO_TALK_TRAILING_MS.get();
-                // Keep listening briefly for trailing audio; finishUtterance ends it.
                 if (!listening.get()) {
                     captureService.stopCapture();
                 }
             }
             case RELOAD_MODEL -> {
-                vosk.close();
+                // Only attempt native/model load when explicitly requested (or first listen).
+                VoskRecognitionService service = voskService();
+                service.close();
                 VoiceRecognitionState.resetModelMissingNotify();
                 VoiceCommandRegistry.INSTANCE.reloadFromServerDefinitions();
-                vosk.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords());
+                service.ensureLoaded(VoiceCommandRegistry.INSTANCE.grammarWords());
             }
             case UNLOAD_MODEL -> {
                 listening.set(false);
                 captureService.stopCapture();
-                vosk.close();
+                if (vosk != null) {
+                    vosk.close();
+                }
                 VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.UNKNOWN);
                 VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.OFF);
             }
@@ -194,16 +239,18 @@ public final class VoiceRecognitionWorker {
                 running.set(false);
                 listening.set(false);
                 captureService.closeQuietly();
-                vosk.close();
+                if (vosk != null) {
+                    vosk.close();
+                }
             }
         }
     }
 
     private void finishUtterance() {
         VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.PROCESSING);
-        String text = vosk.flushFinal();
+        String text = voskService().flushFinal();
         handleRecognized(text, true);
-        vosk.resetUtterance();
+        voskService().resetUtterance();
         VoiceRecognitionState.setRecognizerStatus(VoiceRecognitionState.RecognizerStatus.IDLE);
     }
 
@@ -239,7 +286,6 @@ public final class VoiceRecognitionWorker {
         if (normalized.isBlank()) {
             return 0.0f;
         }
-        // Vosk small models often omit confidence; derive a conservative proxy.
         int words = normalized.split("\\s+").length;
         float base = Math.min(0.9f, 0.45f + 0.08f * words);
         if (raw != null && raw.equalsIgnoreCase(normalized)) {

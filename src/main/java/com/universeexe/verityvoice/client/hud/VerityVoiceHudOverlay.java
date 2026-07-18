@@ -39,6 +39,17 @@ public final class VerityVoiceHudOverlay {
             return;
         }
 
+        try {
+            renderIndicator(event);
+        } catch (Throwable ex) {
+            if (ex instanceof VirtualMachineError) {
+                throw (VirtualMachineError) ex;
+            }
+            // Never let HUD drawing take down the render thread.
+        }
+    }
+
+    private void renderIndicator(RenderGuiOverlayEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         VerityVoiceHudController controller = VerityVoiceHudController.INSTANCE;
         if (VerityVoiceHudController.shouldSuppressVisibility(mc) && !controller.isPreviewMode()) {

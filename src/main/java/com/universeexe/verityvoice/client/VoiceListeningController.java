@@ -39,6 +39,7 @@ public final class VoiceListeningController {
     private boolean listeningThisHold;
 
     private VoiceListeningController() {
+        // Worker is constructed here, but Vosk/JNA natives stay unloaded until first listen.
         worker.setUtteranceHandler(this::onUtterance);
     }
 

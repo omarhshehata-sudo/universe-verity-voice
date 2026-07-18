@@ -73,7 +73,8 @@ dependencies {
     compileOnly files(verityJar)
     runtimeOnly files(verityJar)
 
-    // Vosk offline STT + JNA. Embedded into the published JAR (no relocation — natives stay intact).
+    // Vosk offline STT. Embed vosk classes + libvosk natives only (see jar excludes).
+    // JNA itself must NOT be fat-jarred — use Forge's JNA at runtime to avoid dual jnidispatch.
     // Never referenced from common/server code paths.
     implementation("com.alphacephei:vosk:${vosk_version}")
     embedVosk("com.alphacephei:vosk:${vosk_version}")
@@ -103,6 +104,11 @@ tasks.named('jar', Jar).configure {
         exclude 'META-INF/*.DSA'
         exclude 'META-INF/*.RSA'
         exclude 'META-INF/MANIFEST.MF'
+        // Critical: do NOT fat-jar JNA / jnidispatch. Forge already ships JNA; embedding a
+        // second copy is a common cause of hard native process kills with no crash-report.
+        // Keep org/vosk + platform libvosk.* resources only.
+        exclude 'com/sun/jna/**'
+        exclude 'META-INF/services/com.sun.jna.*'
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 

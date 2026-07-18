@@ -51,8 +51,10 @@ public final class VerityVoiceClient {
         consentQueued = !VoiceClientConfig.CONSENT_ANSWERED.get();
         VoiceCommandRegistry.INSTANCE.reloadFromServerDefinitions();
         if (VoiceClientConfig.VOICE_COMMANDS_ENABLED.get()) {
+            // Do NOT load Vosk natives here — LibVosk/JNA init can hard-kill the JVM with no
+            // Forge crash-report. Natives load lazily on first push-to-talk / explicit reload.
             VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.READY);
-            VoiceListeningController.INSTANCE.worker().offer(VoiceRecognitionWorker.Command.RELOAD_MODEL);
+            VoiceRecognitionState.setModelStatus(VoiceRecognitionState.ModelStatus.UNKNOWN);
         }
     }
 
