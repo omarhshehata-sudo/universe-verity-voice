@@ -1,5 +1,6 @@
 package com.universeexe.verityvoice.common.event;
 
+import com.universeexe.verity.data.VerityPlayerData;
 import com.universeexe.verity.entity.VerityEntity;
 import com.universeexe.verity.registry.VeritySounds;
 import com.universeexe.verityvoice.UniverseVerityVoice;
@@ -13,8 +14,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.RegistryObject;
 
 /**
- * First gameplay responses layered on the speech-to-intent foundation.
- * FOLLOW: play one of three voice lines (~33% each) + start rolling follow. STAY: stop following.
+ * Gameplay responses layered on the speech-to-intent foundation.
+ * FOLLOW: play one of three voice lines (~33% each) + start rolling follow.
+ * STAY: stop following.
+ * HELLO: 50/50 greeting line, plus a one-time whisper follow-up per player.
  */
 public final class VerityVoiceGameplayResponses {
     @SuppressWarnings("unchecked")
@@ -48,6 +51,31 @@ public final class VerityVoiceGameplayResponses {
             handleFollow(player, verity);
         } else if (VoiceIntents.STAY.equals(event.getIntentId())) {
             handleStay(player, verity);
+        } else if (VoiceIntents.HELLO.equals(event.getIntentId())) {
+            handleHello(player, verity);
+        }
+    }
+
+    private static void handleHello(ServerPlayer player, VerityEntity verity) {
+        boolean firstWhisper = !VerityPlayerData.hasPlayedHelloWhisper(player);
+        verity.playHelloVoiceResponse(firstWhisper);
+        if (firstWhisper) {
+            VerityPlayerData.setHelloWhisperPlayed(player, true);
+        }
+
+        if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get()) {
+            UniverseVerityVoice.LOGGER.info(
+                    "[VerityVoice] HELLO response for {} / verity={} (whisperFollowup={})",
+                    player.getGameProfile().getName(),
+                    verity.getId(),
+                    firstWhisper
+            );
+            player.displayClientMessage(
+                    net.minecraft.network.chat.Component.literal(
+                            firstWhisper ? "[VOICE] Hello + first whisper follow-up" : "[VOICE] Hello reply"
+                    ),
+                    true
+            );
         }
     }
 
