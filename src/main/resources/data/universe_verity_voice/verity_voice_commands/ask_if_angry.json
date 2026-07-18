@@ -1,0 +1,18 @@
+{
+  "id": "ask_if_angry",
+  "enabled": true,
+  "wake_word_required": true,
+  "allowed_during_introduction": false,
+  "maximum_distance": 12.0,
+  "minimum_confidence": 0.6,
+  "cooldown_ticks": 40,
+  "priority": 50,
+  "aliases": [
+    "verity are you angry",
+    "are you angry",
+    "are you mad",
+    "did i make you angry",
+    "are you upset"
+  ],
+  "event_id": "universe_verity_voice:ask_if_angry"
+}

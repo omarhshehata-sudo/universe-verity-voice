@@ -1,0 +1,19 @@
+{
+  "id": "find_nearest_diamonds",
+  "enabled": true,
+  "wake_word_required": true,
+  "allowed_during_introduction": false,
+  "maximum_distance": 12.0,
+  "minimum_confidence": 0.7,
+  "cooldown_ticks": 60,
+  "priority": 45,
+  "aliases": [
+    "verity where are the nearest diamonds",
+    "where are the nearest diamonds",
+    "find the nearest diamonds",
+    "where is the closest diamond",
+    "can you find diamonds",
+    "where can i find diamonds"
+  ],
+  "event_id": "universe_verity_voice:find_nearest_diamonds"
+}

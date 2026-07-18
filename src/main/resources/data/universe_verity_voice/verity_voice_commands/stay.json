@@ -1,0 +1,17 @@
+{
+  "id": "stay",
+  "enabled": true,
+  "wake_word_required": true,
+  "allowed_during_introduction": false,
+  "maximum_distance": 12.0,
+  "minimum_confidence": 0.65,
+  "cooldown_ticks": 40,
+  "priority": 50,
+  "aliases": [
+    "verity stay here",
+    "stay here",
+    "wait here",
+    "do not move"
+  ],
+  "event_id": "universe_verity_voice:stay"
+}

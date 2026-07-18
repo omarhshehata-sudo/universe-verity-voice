@@ -1,0 +1,17 @@
+.gradle/
+build/
+run/
+run-data/
+out/
+.idea/
+*.iml
+*.ipr
+*.iws
+eclipse/
+.classpath
+.project
+.settings/
+bin/
+mcmodsrepo/
+*.log
+.DS_Store
