@@ -88,4 +88,9 @@ public final class OfficialVerityVoiceBridge {
         }
         return owner.equals(player.getUUID());
     }
+
+    /** True while Verity's voice director is playing or has queued lines for this player. */
+    public static boolean isVoiceDirectorBusy(ServerPlayer player) {
+        return com.universeexe.verity.voice.VerityVoiceDirector.isPlayerBusy(player.getUUID());
+    }
 }

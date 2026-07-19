@@ -105,9 +105,11 @@ public final class VoiceIntentMatcher {
             "hello",
             "hey",
             "hiya",
+            "howdy",
             "hi verity",
             "hello verity",
             "hey verity",
+            "howdy verity",
             "hi there",
             "hello there",
             "hey there",
@@ -138,6 +140,9 @@ public final class VoiceIntentMatcher {
         String stripped = withoutWake == null ? "" : withoutWake.trim();
         boolean exact = EXACT_GREETINGS.contains(candidate) || EXACT_GREETINGS.contains(stripped);
         if (!exact) {
+            exact = matchesGreetingPrefix(stripped.isBlank() ? candidate : stripped);
+        }
+        if (!exact) {
             return null;
         }
         VoiceCommandDefinition helloDef = null;
@@ -155,6 +160,29 @@ public final class VoiceIntentMatcher {
             return null;
         }
         return new MatchResult(VoiceIntents.HELLO, score, helloDef);
+    }
+
+    /** Allow a short trailing filler after an exact greeting (e.g. "hello there friend"). */
+    private static boolean matchesGreetingPrefix(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String[] words = text.split("\\s+");
+        if (words.length > 5) {
+            return false;
+        }
+        for (String greeting : EXACT_GREETINGS) {
+            if (text.equals(greeting)) {
+                return true;
+            }
+            if (text.startsWith(greeting + " ")) {
+                String[] greetingWords = greeting.split("\\s+");
+                if (words.length <= greetingWords.length + 2) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Nullable

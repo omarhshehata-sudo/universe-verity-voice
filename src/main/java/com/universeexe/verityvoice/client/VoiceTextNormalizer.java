@@ -32,6 +32,10 @@ public final class VoiceTextNormalizer {
                 .replace("hallo", "hello")
                 .replace("helo", "hello")
                 .replace("hellow", "hello");
+        // Common Vosk drops articles in short commands.
+        text = text.replaceAll("\\bmake sound\\b", "make a sound")
+                .replaceAll("\\bmake noise\\b", "make a noise")
+                .replaceAll("\\bdo sound\\b", "do a sound");
         text = PUNCT.matcher(text).replaceAll(" ");
         text = MULTI_SPACE.matcher(text).replaceAll(" ").trim();
 

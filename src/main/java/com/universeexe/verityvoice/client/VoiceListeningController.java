@@ -37,6 +37,8 @@ public final class VoiceListeningController {
     private boolean started;
     private long nearbyScanCooldown;
     private boolean listeningThisHold;
+    private String lastSentIntentKey = "";
+    private long lastSentIntentAtMs;
 
     private VoiceListeningController() {
         // Worker is constructed here, but Vosk/JNA natives stay unloaded until first listen.
@@ -310,6 +312,16 @@ public final class VoiceListeningController {
         String phrase = normalized.length() > VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH
                 ? normalized.substring(0, VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH)
                 : normalized;
+
+        String intentKey = match.intentId() + "|" + phrase;
+        long nowMs = System.currentTimeMillis();
+        if (intentKey.equals(lastSentIntentKey) && nowMs - lastSentIntentAtMs < 2500L) {
+            VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
+            VerityVoiceHudController.INSTANCE.showNoCommand();
+            return;
+        }
+        lastSentIntentKey = intentKey;
+        lastSentIntentAtMs = nowMs;
 
         VoiceIntentMatchedC2SPacket packet = new VoiceIntentMatchedC2SPacket(
                 VoiceIntentMatchedLimits.PACKET_VERSION,

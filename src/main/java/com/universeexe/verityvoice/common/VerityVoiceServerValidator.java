@@ -33,6 +33,8 @@ public final class VerityVoiceServerValidator {
         RATE_LIMIT,
         DUPLICATE_SEQUENCE,
         LOW_CONFIDENCE,
+        VOICE_BUSY,
+        DUPLICATE_INTENT,
         WRONG_DIMENSION
     }
 
@@ -79,6 +81,13 @@ public final class VerityVoiceServerValidator {
         if (VerityVoiceCooldownManager.INSTANCE.isOnCooldown(player, intentId, gameTime)) {
             return reject(player, intentId, RejectReason.COOLDOWN);
         }
+        if (OfficialVerityVoiceBridge.isVoiceDirectorBusy(player)) {
+            return reject(player, intentId, RejectReason.VOICE_BUSY);
+        }
+        String phrase = sanitizedPhrase == null ? "" : sanitizePhrase(sanitizedPhrase);
+        if (!VerityVoiceCooldownManager.INSTANCE.acceptIntent(player, intentId, phrase, gameTime)) {
+            return reject(player, intentId, RejectReason.DUPLICATE_INTENT);
+        }
 
         Entity verity = player.level().getEntity(verityEntityId);
         if (verity == null || !verity.isAlive()) {
@@ -112,7 +121,6 @@ public final class VerityVoiceServerValidator {
             return reject(player, intentId, RejectReason.INTRO_BLOCKED);
         }
 
-        String phrase = sanitizedPhrase == null ? "" : sanitizePhrase(sanitizedPhrase);
         VerityVoiceIntentEvent event = new VerityVoiceIntentEvent(
                 player, verity, intentId, confidence, sequence, phrase
         );
@@ -136,6 +144,12 @@ public final class VerityVoiceServerValidator {
     }
 
     private static RejectReason reject(ServerPlayer player, ResourceLocation intentId, RejectReason reason) {
+        if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get() && player != null && intentId != null) {
+            UniverseVerityVoice.LOGGER.info(
+                    "[VerityVoice] Rejected intent {} from {}: {}",
+                    intentId, player.getGameProfile().getName(), reason
+            );
+        }
         if (player != null && intentId != null) {
             ack(player, false, intentId, reason.name());
         }

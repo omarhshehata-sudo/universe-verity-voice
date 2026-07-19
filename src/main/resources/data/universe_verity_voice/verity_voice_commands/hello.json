@@ -4,7 +4,7 @@
   "wake_word_required": false,
   "allowed_during_introduction": false,
   "maximum_distance": 8.0,
-  "minimum_confidence": 0.70,
+  "minimum_confidence": 0.65,
   "cooldown_ticks": 80,
   "priority": 70,
   "aliases": [

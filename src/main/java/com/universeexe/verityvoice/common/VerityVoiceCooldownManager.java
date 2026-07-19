@@ -13,6 +13,8 @@ public final class VerityVoiceCooldownManager {
     private final Map<UUID, Map<ResourceLocation, Long>> intentReadyAtTick = new ConcurrentHashMap<>();
     private final Map<UUID, RateWindow> rateWindows = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastSequence = new ConcurrentHashMap<>();
+    private final Map<UUID, String> lastIntentKey = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastIntentTick = new ConcurrentHashMap<>();
 
     private VerityVoiceCooldownManager() {
     }
@@ -41,6 +43,22 @@ public final class VerityVoiceCooldownManager {
         return true;
     }
 
+    /**
+     * Rejects the same intent+phrase fired twice within {@code debounceTicks} (default 40 = 2s).
+     */
+    public boolean acceptIntent(ServerPlayer player, ResourceLocation intentId, String phrase, long gameTime) {
+        String key = intentId + "|" + (phrase == null ? "" : phrase.trim().toLowerCase());
+        UUID id = player.getUUID();
+        String prevKey = lastIntentKey.get(id);
+        Long prevTick = lastIntentTick.get(id);
+        if (prevKey != null && prevKey.equals(key) && prevTick != null && gameTime - prevTick < 40L) {
+            return false;
+        }
+        lastIntentKey.put(id, key);
+        lastIntentTick.put(id, gameTime);
+        return true;
+    }
+
     public boolean allowRate(ServerPlayer player, long gameTime, int maxCount, int windowTicks) {
         RateWindow window = rateWindows.computeIfAbsent(player.getUUID(), id -> new RateWindow());
         if (gameTime - window.windowStart >= windowTicks) {
@@ -59,6 +77,8 @@ public final class VerityVoiceCooldownManager {
         intentReadyAtTick.remove(id);
         rateWindows.remove(id);
         lastSequence.remove(id);
+        lastIntentKey.remove(id);
+        lastIntentTick.remove(id);
     }
 
     private static final class RateWindow {

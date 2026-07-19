@@ -1,19 +1,28 @@
 {
   "id": "make_sound",
   "enabled": true,
-  "wake_word_required": true,
+  "wake_word_required": false,
   "allowed_during_introduction": false,
   "maximum_distance": 12.0,
-  "minimum_confidence": 0.6,
+  "minimum_confidence": 0.55,
   "cooldown_ticks": 40,
   "priority": 50,
   "aliases": [
     "verity make a sound",
     "verity make a noise",
+    "verity make sound",
+    "verity make noise",
     "make a sound",
     "make a noise",
+    "make sound",
+    "make noise",
+    "make some noise",
+    "make noises",
     "do a sound",
-    "can you make a sound"
+    "do sound",
+    "can you make a sound",
+    "can you make a noise",
+    "can you make sound"
   ],
   "event_id": "universe_verity_voice:make_sound"
 }
