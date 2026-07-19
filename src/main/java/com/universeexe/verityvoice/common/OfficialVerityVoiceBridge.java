@@ -37,7 +37,7 @@ public final class OfficialVerityVoiceBridge {
     }
 
     public static boolean isIntroductionComplete(Player player) {
-        return VerityPlayerData.isRevealCompleted(player);
+        return VerityPlayerData.isVerityRevealed(player) || VerityPlayerData.isRevealCompleted(player);
     }
 
     public static boolean isVerityAvailableForConversation(Entity verity) {

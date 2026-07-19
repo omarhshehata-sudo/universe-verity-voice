@@ -1,8 +1,10 @@
 package com.universeexe.verityvoice.common.event;
 
-import com.universeexe.verity.data.VerityPlayerData;
 import com.universeexe.verity.entity.VerityEntity;
+import com.universeexe.verity.quest.VerityQuestManager;
 import com.universeexe.verity.registry.VeritySounds;
+import com.universeexe.verity.trust.TrustReason;
+import com.universeexe.verity.trust.VerityTrustManager;
 import com.universeexe.verityvoice.UniverseVerityVoice;
 import com.universeexe.verityvoice.common.VoiceIntents;
 import com.universeexe.verityvoice.common.config.VoiceCommonConfig;
@@ -52,33 +54,67 @@ public final class VerityVoiceGameplayResponses {
         }
         ServerPlayer player = event.getPlayer();
 
+        String phrase = event.getSanitizedPhrase() == null ? "" : event.getSanitizedPhrase();
+        if (!phrase.isBlank() && VerityTrustManager.isInsultPhrase(phrase)) {
+            VerityTrustManager.addTrustDefault(player, verity, TrustReason.INSULTED_VERITY);
+        }
+
+        if (!phrase.isBlank() && VerityQuestManager.tryHandleQ3ResponsePhrase(player, verity, phrase)) {
+            return;
+        }
+
         if (VoiceIntents.FOLLOW.equals(event.getIntentId())) {
+            VerityTrustManager.noteVoiceCommand(player, "follow");
             handleFollow(player, verity);
         } else if (VoiceIntents.STAY.equals(event.getIntentId())) {
             handleStay(player, verity);
         } else if (VoiceIntents.HELLO.equals(event.getIntentId())) {
-            handleHello(player, verity);
+            handleHello(player, verity, phrase);
+        } else if (VoiceIntents.MAKE_SOUND.equals(event.getIntentId())) {
+            handleMakeSound(player, verity, phrase);
+        } else if (VoiceIntents.Q3_ANSWER.equals(event.getIntentId())) {
+            handleQ3Answer(player, verity, phrase);
+        } else if (VoiceIntents.FIND_NEAREST_DIAMONDS.equals(event.getIntentId())
+                || VoiceIntents.FIND_NEAREST_VILLAGE.equals(event.getIntentId())) {
+            VerityTrustManager.noteVoiceCommand(player, event.getIntentId().getPath());
+            VerityTrustManager.markHelpCompleted(player, event.getIntentId().toString());
+        } else if (!phrase.isBlank() && VerityTrustManager.isThanksPhrase(phrase)) {
+            VerityTrustManager.addTrustDefault(player, verity, TrustReason.THANKED_AFTER_HELP);
         }
     }
 
-    private static void handleHello(ServerPlayer player, VerityEntity verity) {
-        boolean firstWhisper = !VerityPlayerData.hasPlayedHelloWhisper(player);
-        verity.playHelloVoiceResponse(firstWhisper);
-        if (firstWhisper) {
-            VerityPlayerData.setHelloWhisperPlayed(player, true);
-        }
+    private static void handleMakeSound(ServerPlayer player, VerityEntity verity, String phrase) {
+        VerityQuestManager.handleMakeSoundIntent(player, verity, phrase);
 
         if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get()) {
             UniverseVerityVoice.LOGGER.info(
-                    "[VerityVoice] HELLO response for {} / verity={} (whisperFollowup={})",
+                    "[VerityVoice] MAKE_SOUND quest response for {} / verity={}",
                     player.getGameProfile().getName(),
-                    verity.getId(),
-                    firstWhisper
+                    verity.getId()
             );
             player.displayClientMessage(
-                    net.minecraft.network.chat.Component.literal(
-                            firstWhisper ? "[VOICE] Hello + first whisper follow-up" : "[VOICE] Hello reply"
-                    ),
+                    net.minecraft.network.chat.Component.literal("[VOICE] Make a sound → Verity quest dialogue"),
+                    true
+            );
+        }
+    }
+
+    private static void handleQ3Answer(ServerPlayer player, VerityEntity verity, String phrase) {
+        VerityQuestManager.tryHandleQ3ResponsePhrase(player, verity, phrase);
+    }
+
+    private static void handleHello(ServerPlayer player, VerityEntity verity, String phrase) {
+        VerityQuestManager.handleHelloIntent(player, verity, phrase);
+
+        if (VoiceCommonConfig.ENABLE_DEBUG_COMMANDS.get()) {
+            UniverseVerityVoice.LOGGER.info(
+                    "[VerityVoice] HELLO quest response for {} / verity={} phrase='{}'",
+                    player.getGameProfile().getName(),
+                    verity.getId(),
+                    phrase
+            );
+            player.displayClientMessage(
+                    net.minecraft.network.chat.Component.literal("[VOICE] Hello → Verity quest dialogue"),
                     true
             );
         }

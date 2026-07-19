@@ -306,12 +306,10 @@ public final class VoiceListeningController {
             return;
         }
 
-        String phrase = null;
-        if (VoiceClientConfig.SEND_RECOGNIZED_TEXT_TO_SERVER_FOR_DEBUG.get()) {
-            phrase = normalized.length() > VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH
-                    ? normalized.substring(0, VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH)
-                    : normalized;
-        }
+        // Always send a short sanitized phrase for trust/insult/thanks matching (never raw audio).
+        String phrase = normalized.length() > VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH
+                ? normalized.substring(0, VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH)
+                : normalized;
 
         VoiceIntentMatchedC2SPacket packet = new VoiceIntentMatchedC2SPacket(
                 VoiceIntentMatchedLimits.PACKET_VERSION,

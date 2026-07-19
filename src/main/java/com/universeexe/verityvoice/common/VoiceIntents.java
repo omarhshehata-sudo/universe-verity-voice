@@ -14,6 +14,7 @@ public final class VoiceIntents {
     public static final ResourceLocation MEET_VERITY = id("meet_verity");
     public static final ResourceLocation HELLO = id("hello");
     public static final ResourceLocation MAKE_SOUND = id("make_sound");
+    public static final ResourceLocation Q3_ANSWER = id("q3_answer");
     public static final ResourceLocation ASK_FAVORITE_SONG = id("ask_favorite_song");
     public static final ResourceLocation FIND_NEAREST_VILLAGE = id("find_nearest_village");
     public static final ResourceLocation FIND_NEAREST_DIAMONDS = id("find_nearest_diamonds");
@@ -31,6 +32,7 @@ public final class VoiceIntents {
         set.add(MEET_VERITY);
         set.add(HELLO);
         set.add(MAKE_SOUND);
+        set.add(Q3_ANSWER);
         set.add(ASK_FAVORITE_SONG);
         set.add(FIND_NEAREST_VILLAGE);
         set.add(FIND_NEAREST_DIAMONDS);
