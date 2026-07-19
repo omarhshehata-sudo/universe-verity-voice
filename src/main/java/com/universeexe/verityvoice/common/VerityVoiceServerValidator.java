@@ -85,7 +85,19 @@ public final class VerityVoiceServerValidator {
             return reject(player, intentId, RejectReason.VOICE_BUSY);
         }
         String phrase = sanitizedPhrase == null ? "" : sanitizePhrase(sanitizedPhrase);
+        if (VoiceIntents.HELLO.equals(intentId)
+                && VerityVoiceCooldownManager.INSTANCE.isHelloDebounced(player, gameTime)) {
+            UniverseVerityVoice.LOGGER.info(
+                    "[VerityVoice] Dropped duplicate HELLO from {} (server debounce)",
+                    player.getGameProfile().getName());
+            return reject(player, intentId, RejectReason.DUPLICATE_INTENT);
+        }
         if (!VerityVoiceCooldownManager.INSTANCE.acceptIntent(player, intentId, phrase, gameTime)) {
+            if (VoiceIntents.HELLO.equals(intentId)) {
+                UniverseVerityVoice.LOGGER.info(
+                        "[VerityVoice] Dropped duplicate HELLO from {} (intent debounce)",
+                        player.getGameProfile().getName());
+            }
             return reject(player, intentId, RejectReason.DUPLICATE_INTENT);
         }
 

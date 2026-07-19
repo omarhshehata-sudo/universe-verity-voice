@@ -15,6 +15,10 @@ public final class VerityVoiceCooldownManager {
     private final Map<UUID, Long> lastSequence = new ConcurrentHashMap<>();
     private final Map<UUID, String> lastIntentKey = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastIntentTick = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> helloReadyAtTick = new ConcurrentHashMap<>();
+
+    /** HELLO debounce window after accept — any phrase (5 s). */
+    public static final int HELLO_DEBOUNCE_TICKS = 100;
 
     private VerityVoiceCooldownManager() {
     }
@@ -45,10 +49,19 @@ public final class VerityVoiceCooldownManager {
 
     /**
      * Rejects the same intent+phrase fired twice within {@code debounceTicks} (default 40 = 2s).
+     * HELLO uses intent-only debounce ({@link #HELLO_DEBOUNCE_TICKS}) so "hi" and "hello" cannot stack.
      */
     public boolean acceptIntent(ServerPlayer player, ResourceLocation intentId, String phrase, long gameTime) {
-        String key = intentId + "|" + (phrase == null ? "" : phrase.trim().toLowerCase());
         UUID id = player.getUUID();
+        if (VoiceIntents.HELLO.equals(intentId)) {
+            Long helloReady = helloReadyAtTick.get(id);
+            if (helloReady != null && gameTime < helloReady) {
+                return false;
+            }
+            helloReadyAtTick.put(id, gameTime + HELLO_DEBOUNCE_TICKS);
+            return true;
+        }
+        String key = intentId + "|" + (phrase == null ? "" : phrase.trim().toLowerCase());
         String prevKey = lastIntentKey.get(id);
         Long prevTick = lastIntentTick.get(id);
         if (prevKey != null && prevKey.equals(key) && prevTick != null && gameTime - prevTick < 40L) {
@@ -57,6 +70,15 @@ public final class VerityVoiceCooldownManager {
         lastIntentKey.put(id, key);
         lastIntentTick.put(id, gameTime);
         return true;
+    }
+
+    public boolean isHelloDebounced(ServerPlayer player, long gameTime) {
+        Long ready = helloReadyAtTick.get(player.getUUID());
+        return ready != null && gameTime < ready;
+    }
+
+    public void markHelloAccepted(ServerPlayer player, long gameTime) {
+        helloReadyAtTick.put(player.getUUID(), gameTime + HELLO_DEBOUNCE_TICKS);
     }
 
     public boolean allowRate(ServerPlayer player, long gameTime, int maxCount, int windowTicks) {
@@ -79,6 +101,7 @@ public final class VerityVoiceCooldownManager {
         lastSequence.remove(id);
         lastIntentKey.remove(id);
         lastIntentTick.remove(id);
+        helloReadyAtTick.remove(id);
     }
 
     private static final class RateWindow {

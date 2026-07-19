@@ -5,7 +5,7 @@
   "allowed_during_introduction": false,
   "maximum_distance": 8.0,
   "minimum_confidence": 0.65,
-  "cooldown_ticks": 80,
+  "cooldown_ticks": 100,
   "priority": 70,
   "aliases": [
     "hello verity",

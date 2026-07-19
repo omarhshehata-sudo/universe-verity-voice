@@ -313,9 +313,18 @@ public final class VoiceListeningController {
                 ? normalized.substring(0, VoiceIntentMatchedLimits.MAX_PHRASE_LENGTH)
                 : normalized;
 
-        String intentKey = match.intentId() + "|" + phrase;
+        String intentKey = VoiceIntents.HELLO.equals(match.intentId())
+                ? match.intentId().toString()
+                : match.intentId() + "|" + phrase;
         long nowMs = System.currentTimeMillis();
-        if (intentKey.equals(lastSentIntentKey) && nowMs - lastSentIntentAtMs < 2500L) {
+        long debounceMs = VoiceIntents.HELLO.equals(match.intentId()) ? 5000L : 2500L;
+        if (VoiceIntents.HELLO.equals(match.intentId())) {
+            if (nowMs - lastSentIntentAtMs < debounceMs) {
+                VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
+                VerityVoiceHudController.INSTANCE.showNoCommand();
+                return;
+            }
+        } else if (intentKey.equals(lastSentIntentKey) && nowMs - lastSentIntentAtMs < debounceMs) {
             VoiceRecognitionState.setMicStatus(VoiceRecognitionState.MicStatus.NO_COMMAND);
             VerityVoiceHudController.INSTANCE.showNoCommand();
             return;
