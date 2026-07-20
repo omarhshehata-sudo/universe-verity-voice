@@ -18,7 +18,7 @@ import net.minecraftforge.registries.RegistryObject;
  * Gameplay responses layered on the speech-to-intent foundation.
  * FOLLOW: play one of three voice lines (~33% each) + start rolling follow.
  * STAY: stop following.
- * HELLO: 50/50 greeting line, plus a one-time whisper follow-up per player.
+ * HELLO: Quest 2 first-greeting conversation (single sequential path via VerityQuestManager).
  */
 public final class VerityVoiceGameplayResponses {
     @SuppressWarnings("unchecked")
